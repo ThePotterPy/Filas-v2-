@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EXPY FEST - Gestión de Experiencias{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'expy-dark': '#080B0D',
+                        'expy-lime': '#80BF21',
+                        'expy-olive': '#71A621',
+                        'expy-light': '#BFD989',
+                        'expy-sand': '#D9D3B8',
+                        'expy-teal': '#71A621',
+                        'expy-purple': '#080B0D',
+                        'expy-green': '#80BF21'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="app-body">
+    <div class="container">
+        <header class="page-header">
+            <div class="header-top-row">
+                <span class="brand-badge"> Festival de Proyectos Inmersivos</span>
+                <div class="live-sync-indicator" id="liveSyncIndicator" title="Actualizaciones automáticas en segundo plano">
+                    <span class="live-dot-pulse"></span>
+                    <span class="live-sync-text" id="liveSyncStatusText">En vivo</span>
+                    <button type="button" class="sync-btn" onclick="triggerManualSync()" title="Sincronizar ahora" aria-label="Sincronizar">
+                        <svg class="sync-icon" id="syncSpinIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <h1 class="text-gradient">{% block page_title %}EXPY FEST 2026{% endblock %}</h1>
+            <p class="header-meta">{% block page_subtitle %}Panel de control y gestión en tiempo real{% endblock %}</p>
+            
+            <nav class="top-nav-dock">
+                <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint in ['index', 'attraction_detail', 'edit_attraction'] %}active{% endif %}">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    <span>Experiencias</span>
+                </a>
+                <a href="{{ url_for('metrics') }}" class="nav-item {% if request.endpoint == 'metrics' %}active{% endif %}">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('volunteers') }}" class="nav-item {% if request.endpoint == 'volunteers' %}active{% endif %}">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                    <span>Voluntarixs</span>
+                </a>
+            </nav>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-container" id="flashMessagesContainer">
+                {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }} animate-slide-down">
+                    <span class="flash-icon">
+                        {% if category == 'success' %}✓{% elif category == 'error' %}{% else %}{% endif %}
+                    </span>
+                    <span class="flash-text">{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <main>{% block content %}{% endblock %}</main>
+    </div>
+
+    <!-- Motor de Sincronización en Tiempo Real Silenciosa (Sin parpadeos) -->
+    <script>
+    (function() {
+        let isSyncing = false;
+        let lastSyncTime = Date.now();
+        const currentEndpoint = "{{ request.endpoint }}";
+        const attractionIdMatch = window.location.pathname.match(/\/attraction\/(\d+)/);
+        const currentAttractionId = attractionIdMatch ? attractionIdMatch[1] : null;
+
+        function isUserInteracting() {
+            const active = document.activeElement;
+            if (!active) return false;
+            const tag = active.tagName.toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select';
+        }
+
+        function setSpinning(spinning) {
+            const icon = document.getElementById('syncSpinIcon');
+            if (icon) {
+                if (spinning) icon.classList.add('animate-spin');
+                else setTimeout(() => icon.classList.remove('animate-spin'), 350);
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            let container = document.getElementById('flashMessagesContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'flashMessagesContainer';
+                container.className = 'flash-container';
+                document.querySelector('main').before(container);
+            }
+            const toast = document.createElement('div');
+            toast.className = `flash-message flash-${type} animate-slide-down`;
+            toast.innerHTML = `
+                <span class="flash-icon">${type === 'success' ? '✓' : ''}</span>
+                <span class="flash-text">${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                toast.style.transition = 'all 300ms ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        async function syncData() {
+            if (isSyncing) return;
+            if (isUserInteracting()) return; // No interrumpir al usuario mientras escribe
+
+            isSyncing = true;
+            setSpinning(true);
+
+            try {
+                if (currentEndpoint === 'index') {
+                    const res = await fetch('/api/status', { headers: { 'Accept': 'application/json' } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateIndexDOM(data);
+                    }
+                } else if (currentEndpoint === 'attraction_detail' && currentAttractionId) {
+                    const res = await fetch(`/api/attraction/${currentAttractionId}`, { headers: { 'Accept': 'application/json' } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateAttractionDOM(data);
+                    }
+                } else if (currentEndpoint === 'volunteers') {
+                    const res = await fetch('/api/volunteers', { headers: { 'Accept': 'application/json' } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateVolunteersDOM(data);
+                    }
+                }
+                lastSyncTime = Date.now();
+            } catch (err) {
+                console.debug('Silent sync paused', err);
+            } finally {
+                isSyncing = false;
+                setSpinning(false);
+            }
+        }
+
+        function updateIndexDOM(data) {
+            // Actualizar contadores totales
+            const totalEl = document.getElementById('totalCount');
+            if (totalEl && totalEl.textContent != data.total_attractions) {
+                totalEl.textContent = data.total_attractions;
+            }
+            const totalQueueEl = document.getElementById('totalQueueCount');
+            if (totalQueueEl && totalQueueEl.textContent.trim() != String(data.total_queue_count)) {
+                totalQueueEl.textContent = data.total_queue_count;
+            }
+
+            // Actualizar cada tarjeta de atracción
+            data.attractions.forEach(att => {
+                const card = document.querySelector(`.attraction-card-v2 a[href*="/attraction/${att.id}"]`)?.closest('.attraction-card-v2');
+                if (!card) return;
+
+                const prevCount = Number(card.dataset.queueCount || 0);
+                const newCount = Number(att.queue_count || 0);
+                const waitTime = Number(att.estimated_wait_minutes || 0);
+
+                if (prevCount !== newCount || Number(card.dataset.waitTime) !== waitTime) {
+                    card.dataset.queueCount = newCount;
+                    card.dataset.waitTime = waitTime;
+
+                    const numEl = card.querySelector('.queue-number');
+                    if (numEl && numEl.textContent != String(newCount)) {
+                        numEl.textContent = newCount;
+                    }
+
+                    const indicator = card.querySelector('.queue-status-indicator');
+                    if (indicator) {
+                        indicator.className = `queue-status-indicator ${newCount > 10 ? 'status-high' : newCount > 5 ? 'status-medium' : 'status-low'}`;
+                    }
+
+                    const metaChips = card.querySelector('.card-meta-chips');
+                    if (metaChips) {
+                        let waitBadgeHTML = '';
+                        if (newCount > 0) {
+                            if (waitTime > 30) waitBadgeHTML = `<span class="badge badge-alert"> ${waitTime} min espera</span>`;
+                            else if (waitTime > 15) waitBadgeHTML = `<span class="badge badge-warning"> ${waitTime} min espera</span>`;
+                            else waitBadgeHTML = `<span class="badge badge-success"> ${waitTime} min espera</span>`;
+                        } else {
+                            waitBadgeHTML = `<span class="badge badge-success"> Disponible ahora</span>`;
+                        }
+                        const durationSpan = metaChips.querySelector('.badge-soft');
+                        metaChips.innerHTML = '';
+                        if (durationSpan) metaChips.appendChild(durationSpan);
+                        metaChips.insertAdjacentHTML('beforeend', waitBadgeHTML);
+                    }
+                }
+            });
+
+            if (typeof filterCards === 'function') {
+                filterCards();
+            }
+        }
+
+        function updateAttractionDOM(data) {
+            // Actualizar contador en fila
+            const statHighlight = document.querySelector('.stat-value-highlight');
+            if (statHighlight && statHighlight.textContent != String(data.queue_count)) {
+                statHighlight.textContent = data.queue_count;
+            }
+
+            // Actualizar espera estimada
+            const waitInfoVal = document.querySelectorAll('.info-card .info-value')[1];
+            if (waitInfoVal) {
+                const waitText = data.queue_count > 0 ? `${data.estimated_wait_minutes} min` : '0 min (Libre)';
+                if (waitInfoVal.textContent.trim() !== waitText) {
+                    waitInfoVal.textContent = waitText;
+                }
+            }
+        }
+
+        function updateVolunteersDOM(data) {
+            const statVals = document.querySelectorAll('.stats-pills-row .stat-pill-val');
+            if (statVals.length >= 3) {
+                if (statVals[0]) statVals[0].textContent = data.total;
+                if (statVals[1]) statVals[1].textContent = data.active_count;
+                if (statVals[2]) statVals[2].textContent = data.break_count;
+            }
+
+            data.volunteers.forEach(v => {
+                const row = document.querySelector(`.volunteer-card-v2 input[value="${v.id}"]`)?.closest('.volunteer-card-v2') 
+                         || document.querySelector(`.volunteer-card-v2 form[action*="/volunteers/assign/${v.id}"]`)?.closest('.volunteer-card-v2');
+                if (!row) return;
+
+                const assignedPill = row.querySelector('.assigned-pill');
+                if (assignedPill) {
+                    const text = ` ${v.attraction_name || 'Sin asignar'}`;
+                    if (assignedPill.textContent.trim() !== text) {
+                        assignedPill.textContent = text;
+                        assignedPill.className = `assigned-pill ${v.attraction_name ? 'assigned-active' : 'assigned-none'}`;
+                    }
+                }
+
+                const buttons = row.querySelectorAll('.status-toggle-btn');
+                buttons.forEach(btn => {
+                    const form = btn.closest('form');
+                    const statusInput = form?.querySelector('input[name="status"]');
+                    if (statusInput) {
+                        const statusVal = statusInput.value;
+                        if (statusVal === v.status) {
+                            btn.className = `status-toggle-btn active-${statusVal}`;
+                        } else {
+                            btn.className = 'status-toggle-btn';
+                        }
+                    }
+                });
+            });
+        }
+
+        // Interceptor silencioso para envíos de formularios AJAX rápidos
+        document.addEventListener('submit', async function(e) {
+            const form = e.target;
+            const action = form.action || '';
+
+            // Solo interceptar acciones de fila y voluntarixs
+            const isQueueAction = action.includes('/add_to_queue/') || action.includes('/next_person/');
+            const isVolunteerAction = action.includes('/volunteers/update_status/') || action.includes('/volunteers/assign/');
+            const isSosResolve = action.includes('/sos/resolve/') || action.includes('/announcement/resolve/');
+
+            if (isQueueAction || isVolunteerAction || isSosResolve) {
+                e.preventDefault();
+                setSpinning(true);
+
+                try {
+                    const res = await fetch(action, {
+                        method: form.method || 'POST',
+                        body: new FormData(form),
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json.message) showToast(json.message, 'success');
+
+                        // Si es añadir persona a la fila, limpiar el input de inmediato
+                        const nameInput = form.querySelector('#person_name, input[name="person_name"]');
+                        if (nameInput) {
+                            nameInput.value = '';
+                            nameInput.focus();
+                        }
+
+                        // Sincronizar inmediatamente
+                        await syncData();
+
+                        // Si es next_person o delete en attraction.html, recargar la fila suavemente
+                        if (isQueueAction && currentEndpoint === 'attraction_detail') {
+                            location.reload(); // Recarga rápida sólo al despachar a alguien
+                        }
+                        if (isSosResolve) {
+                            form.closest('.alert-card-modern')?.remove();
+                        }
+                    } else {
+                        form.submit(); // Fallback tradicional
+                    }
+                } catch (err) {
+                    form.submit(); // Fallback tradicional
+                } finally {
+                    setSpinning(false);
+                }
+            }
+        });
+
+        window.triggerManualSync = syncData;
+
+        // Intervalo de actualización inteligente en tiempo real (cada 3 segundos)
+        setInterval(() => {
+            // Optimización: Solo sincronizar si la pestaña está visible
+            if (document.visibilityState === 'visible') {
+                syncData();
+            }
+        }, 3000);
+    })();
+    </script>
+</body>
+</html>

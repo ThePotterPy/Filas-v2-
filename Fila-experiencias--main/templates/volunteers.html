@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}Equipo de Voluntarixs — EXPY FEST{% endblock %}
+{% block page_title %}Equipo de Voluntarixs{% endblock %}
+{% block page_subtitle %}Asignación de puestos y control de estados en tiempo real{% endblock %}
+{% block content %}
+<div class="content-wrapper">
+    <!-- Toolbar de resumen de voluntarixs -->
+    <div class="overview-toolbar">
+        <div class="stats-pills-row">
+            <div class="stat-pill">
+                <span class="stat-pill-label">Total Equipo</span>
+                <span class="stat-pill-val">{{ volunteers|length }}</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-pill-label">Activos</span>
+                <span class="stat-pill-val stat-lime">
+                    {{ volunteers|selectattr('status', 'equalto', 'activo')|list|length }}
+                </span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-pill-label">En descanso / comida</span>
+                <span class="stat-pill-val">
+                    {{ volunteers|selectattr('status', 'in', ['descanso', 'comiendo'])|list|length }}
+                </span>
+            </div>
+        </div>
+
+        <button type="button" class="button button-primary" onclick="document.getElementById('volNameInput').focus()">
+            <span>+ Nuevo Voluntarix</span>
+        </button>
+    </div>
+
+    <!-- Formulario de Registro Rápido -->
+    <div class="card form-card">
+        <h2 class="section-title"> Registrar nuevo voluntarix</h2>
+        <form action="{{ url_for('volunteers') }}" method="post" class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1">
+                <input id="volNameInput" name="name" type="text" required placeholder="Nombre completo del voluntarix (ej: Mariana Pérez)" autocomplete="off">
+            </div>
+            <button type="submit" class="button button-primary whitespace-nowrap">
+                <span>Registrar Voluntarix</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Lista de Voluntarixs -->
+    <div class="card">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="section-title !mb-0"> Voluntarixs Registrados</h2>
+            <span class="badge badge-soft text-xs">Sincronización en vivo</span>
+        </div>
+
+        {% if volunteers %}
+        <div class="grid gap-3">
+            {% for v in volunteers %}
+            <article class="volunteer-card-v2">
+                <!-- Información y Avatar -->
+                <div class="volunteer-info-block">
+                    <div class="volunteer-avatar">
+                        {{ v.name[:2]|upper }}
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-base text-expy-dark">{{ v.name }}</h3>
+                        <div class="flex flex-wrap items-center gap-2 mt-1">
+                            <span class="assigned-pill {% if v.attraction_name %}assigned-active{% else %}assigned-none{% endif %}">
+                                 {{ v.attraction_name or 'Sin asignar' }}
+                            </span>
+                            <span class="text-xs text-gray-400">Desde: {{ v.check_in[11:16] if v.check_in and v.check_in|length >= 16 else v.check_in }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones: Asignar Experiencia y Cambiar Estado -->
+                <div class="volunteer-controls-block">
+                    <!-- Selector de Asignación -->
+                    <form action="{{ url_for('assign_volunteer', volunteer_id=v.id) }}" method="post" class="flex items-center gap-2">
+                        <select name="attraction_id" class="select-small !py-2 text-xs" onchange="this.form.submit()">
+                            <option value="">-- Sin asignar --</option>
+                            {% for att in attractions %}
+                            <option value="{{ att.id }}" {% if v.attraction_id == att.id %}selected{% endif %}>
+                                {{ att.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+
+                    <!-- Botones de Estado Segmentados -->
+                    <div class="status-button-group">
+                        {% for status in statuses %}
+                        <form action="{{ url_for('update_volunteer_status', volunteer_id=v.id) }}" method="post">
+                            <input type="hidden" name="status" value="{{ status }}">
+                            <button type="submit" class="status-toggle-btn {% if v.status == status %}active-{{ status }}{% endif %}" title="Cambiar a {{ status }}">
+                                {% if status == 'activo' %} Activo
+                                {% elif status == 'descanso' %} Descanso
+                                {% elif status == 'comiendo' %} Comiendo
+                                {% else %} Salida{% endif %}
+                            </button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-box">
+            <div class="empty-state-icon"></div>
+            <h4 class="text-lg font-bold text-expy-dark mb-1">No hay voluntarixs registrados</h4>
+            <p class="text-gray-500 text-sm max-w-sm mx-auto">Ingresa los nombres arriba para registrar al equipo del festival y coordinar sus ubicaciones.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

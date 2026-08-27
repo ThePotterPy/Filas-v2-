@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% block title %}Experiencias — EXPY FEST{% endblock %}
+{% block page_title %}EXPY FEST{% endblock %}
+{% block page_subtitle %}Gestión en vivo de filas y experiencias inmersivas{% endblock %}
+{% block content %}
+<div class="content-wrapper">
+    {% if pending_alerts or pending_announcements %}
+    <div class="alert-banner-container">
+        {% for alert in pending_alerts %}
+        <div class="alert-card-modern">
+            <div class="alert-icon-pulse">
+                <span class="beacon"></span>
+            </div>
+            <div class="alert-details">
+                <div class="alert-header-row">
+                    <span class="alert-badge">ALERTA SOS</span>
+                    <strong class="alert-location">{{ alert.attraction_name }}</strong>
+                    <span class="alert-time">{{ alert.created_at }}</span>
+                </div>
+                <p class="alert-msg"><strong>{{ alert.volunteer_name }}:</strong> "{{ alert.message }}"</p>
+            </div>
+            <form action="{{ url_for('resolve_sos_alert', alert_id=alert.id) }}" method="post" class="alert-action-form">
+                <button type="submit" class="button button-danger btn-sm">
+                    <span>Marcar resuelto</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+
+        {% for ann in pending_announcements %}
+        <div class="alert-card-modern" style="background-color: rgba(30, 64, 175, 0.2); border-color: rgba(59, 130, 246, 0.5);">
+            <div class="alert-icon-pulse" style="background-color: rgba(59, 130, 246, 0.2);">
+                <span class="beacon" style="background-color: #3b82f6; box-shadow: 0 0 8px #3b82f6;"></span>
+            </div>
+            <div class="alert-details">
+                <div class="alert-header-row">
+                    <span class="alert-badge" style="background-color: #1e3a8a; color: #93c5fd;">ANUNCIO</span>
+                    <strong class="alert-location">{{ ann.attraction_name }}</strong>
+                    <span class="alert-time">{{ ann.created_at }}</span>
+                </div>
+                <p class="alert-msg">"{{ ann.message }}"</p>
+            </div>
+            <form action="{{ url_for('resolve_announcement', announcement_id=ann.id) }}" method="post" class="alert-action-form">
+                <button type="submit" class="button btn-sm" style="background-color: #2563eb; color: white;">
+                    <span>Quitar</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Barra de resumen rápido y controles -->
+    <div class="overview-toolbar">
+        <div class="stats-pills-row">
+            <div class="stat-pill">
+                <span class="stat-pill-label">Experiencias</span>
+                <span class="stat-pill-val" id="totalCount">{{ attractions|length }}</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-pill-label">Total en fila</span>
+                <span class="stat-pill-val stat-lime" id="totalQueueCount">
+                    {{ attractions|sum(attribute='queue_count') }}
+                </span>
+            </div>
+        </div>
+
+        <button type="button" id="toggleAddBtn" class="button button-primary" onclick="toggleAddForm()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>Nueva Experiencia</span>
+        </button>
+    </div>
+
+    <!-- Formulario para nueva experiencia (Colapsable) -->
+    <div id="addFormCard" class="card form-card-collapsible" style="display: none;">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="section-title !mb-0"> Crear nueva experiencia</h2>
+            <button type="button" class="close-btn" onclick="toggleAddForm()" aria-label="Cerrar">&times;</button>
+        </div>
+        <form action="{{ url_for('add_attraction') }}" method="post" class="stacked-form">
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label for="name">Nombre de la experiencia *</label>
+                    <input id="name" name="name" type="text" required placeholder="Ej: Domo de Realidad Virtual">
+                </div>
+                <div>
+                    <label for="duration_minutes">Duración por persona / turno (minutos)</label>
+                    <input id="duration_minutes" name="duration_minutes" type="number" min="1" max="60" value="5">
+                </div>
+            </div>
+
+            <div>
+                <label for="description">Descripción y ubicación</label>
+                <textarea id="description" name="description" rows="2" placeholder="Ubicación, sala, capacidad recomendada..."></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="button button-muted" onclick="toggleAddForm()">Cancelar</button>
+                <button type="submit" class="button button-primary">Crear experiencia</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Buscador y Filtros interactivos -->
+    <div class="search-filter-bar card !p-4">
+        <div class="search-box">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <input id="searchInput" type="text" placeholder="Buscar por nombre, palabra clave o descripción..." autocomplete="off">
+            <button id="clearSearch" type="button" class="clear-search-btn" style="display:none;" onclick="clearSearchInput()">&times;</button>
+        </div>
+        <div class="filter-chips" id="filterChips">
+            <button type="button" class="filter-chip active" data-filter="all">Todas</button>
+            <button type="button" class="filter-chip" data-filter="busy">Con fila </button>
+            <button type="button" class="filter-chip" data-filter="empty">Sin fila </button>
+            <button type="button" class="filter-chip" data-filter="long-wait">Espera &gt; 30m </button>
+        </div>
+    </div>
+
+    <!-- Lista de Experiencias -->
+    <div class="attractions-grid" id="attractionsGrid">
+        {% if attractions %}
+            {% for attraction in attractions %}
+            <article class="attraction-card-v2" 
+                     data-queue-count="{{ attraction.queue_count }}" 
+                     data-wait-time="{{ attraction.estimated_wait_minutes }}" 
+                     data-name="{{ attraction.name|lower }}" 
+                     data-description="{{ (attraction.description or '')|lower }}">
+                
+                <div class="card-main">
+                    <div class="card-title-area">
+                        <div class="experience-icon-box">
+                            <span class="icon-text"></span>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('attraction_detail', attraction_id=attraction.id) }}" class="attraction-name-link">
+                                {{ attraction.name }}
+                            </a>
+                            <p class="attraction-desc">{{ attraction.description or 'Experiencia inmersiva activa.' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="card-meta-chips">
+                        <span class="badge badge-soft">
+                             {{ attraction.duration_minutes }} min / turno
+                        </span>
+                        {% if attraction.queue_count > 0 %}
+                            {% if attraction.estimated_wait_minutes > 30 %}
+                                <span class="badge badge-alert"> {{ attraction.estimated_wait_minutes }} min espera</span>
+                            {% elif attraction.estimated_wait_minutes > 15 %}
+                                <span class="badge badge-warning"> {{ attraction.estimated_wait_minutes }} min espera</span>
+                            {% else %}
+                                <span class="badge badge-success"> {{ attraction.estimated_wait_minutes }} min espera</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-success"> Disponible ahora</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card-side-actions">
+                    <div class="queue-status-indicator {% if attraction.queue_count > 10 %}status-high{% elif attraction.queue_count > 5 %}status-medium{% else %}status-low{% endif %}">
+                        <span class="queue-number">{{ attraction.queue_count }}</span>
+                        <span class="queue-label">en fila</span>
+                    </div>
+
+                    <div class="card-buttons-stack">
+                        <a href="{{ url_for('attraction_detail', attraction_id=attraction.id) }}" class="button button-primary btn-sm w-full">
+                            <span>Gestionar Fila</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </a>
+                        <div class="flex gap-2">
+                            <a href="{{ url_for('edit_attraction', attraction_id=attraction.id) }}" class="button button-muted btn-xs flex-1" title="Editar">
+                                 Editar
+                            </a>
+                            <form action="{{ url_for('delete_attraction', attraction_id=attraction.id) }}" method="post" onsubmit="return confirm('¿Seguro que deseas eliminar esta experiencia?')">
+                                <button type="submit" class="button button-muted btn-xs text-red-600 hover:text-red-700" title="Eliminar">
+                                    
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        {% else %}
+            <div class="card empty-state-box">
+                <div class="empty-state-icon"></div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">No hay experiencias creadas todavía</h3>
+                <p class="text-gray-500 mb-4 max-w-md mx-auto">Comienza agregando las atracciones y stands del festival para gestionar sus filas en tiempo real.</p>
+                <button type="button" class="button button-primary" onclick="toggleAddForm()">
+                    + Crear primera experiencia
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Mensaje cuando la búsqueda no arroja resultados -->
+    <div id="noResults" class="card empty-state-box" style="display: none;">
+        <div class="empty-state-icon"></div>
+        <h3 class="text-lg font-bold mb-1">No se encontraron experiencias</h3>
+        <p class="text-gray-500">Prueba con otro término de búsqueda o cambia el filtro seleccionado.</p>
+    </div>
+</div>
+
+<script>
+let currentFilter = 'all';
+const cards = document.querySelectorAll('.attraction-card-v2');
+const searchInput = document.getElementById('searchInput');
+const clearSearchBtn = document.getElementById('clearSearch');
+const noResults = document.getElementById('noResults');
+const filterChips = document.querySelectorAll('.filter-chip');
+
+function toggleAddForm() {
+    const form = document.getElementById('addFormCard');
+    if (form.style.display === 'none' || form.style.display === '') {
+        form.style.display = 'block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('name')?.focus();
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+function clearSearchInput() {
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    filterCards();
+    searchInput.focus();
+}
+
+function filterCards() {
+    const text = searchInput.value.trim().toLowerCase();
+    clearSearchBtn.style.display = text ? 'block' : 'none';
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        const name = card.dataset.name || '';
+        const description = card.dataset.description || '';
+        const queue = Number(card.dataset.queueCount || 0);
+        const waitTime = Number(card.dataset.waitTime || 0);
+
+        const matchesText = name.includes(text) || description.includes(text);
+        let matchesFilter = true;
+
+        if (currentFilter === 'busy') matchesFilter = queue > 0;
+        if (currentFilter === 'empty') matchesFilter = queue === 0;
+        if (currentFilter === 'long-wait') matchesFilter = waitTime > 30;
+
+        const isVisible = matchesText && matchesFilter;
+        card.style.display = isVisible ? 'grid' : 'none';
+        if (isVisible) visibleCount++;
+    });
+
+    if (noResults) {
+        noResults.style.display = (visibleCount === 0 && cards.length > 0) ? 'block' : 'none';
+    }
+}
+
+filterChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+        filterChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentFilter = chip.dataset.filter;
+        filterCards();
+    });
+});
+
+searchInput?.addEventListener('input', filterCards);
+</script>
+{% endblock %}

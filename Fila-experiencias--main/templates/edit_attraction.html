@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Editar Experiencia — {{ attraction.name }}{% endblock %}
+{% block page_title %}Editar Experiencia{% endblock %}
+{% block page_subtitle %}Ajusta los datos operativos de "{{ attraction.name }}"{% endblock %}
+{% block content %}
+<div class="content-wrapper max-w-2xl mx-auto">
+    <div class="toolbar-row">
+        <a href="{{ url_for('attraction_detail', attraction_id=attraction.id) }}" class="button button-muted">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            <span>Volver a {{ attraction.name }}</span>
+        </a>
+    </div>
+
+    <div class="card form-card">
+        <h2 class="section-title"> Modificar datos de la experiencia</h2>
+        <form action="{{ url_for('edit_attraction', attraction_id=attraction.id) }}" method="post" class="stacked-form">
+            <div>
+                <label for="name">Nombre de la experiencia *</label>
+                <input id="name" name="name" type="text" required value="{{ attraction.name }}" placeholder="Nombre">
+            </div>
+
+            <div>
+                <label for="duration_minutes">Duración estimada por persona / turno (minutos)</label>
+                <input id="duration_minutes" name="duration_minutes" type="number" min="1" max="60" value="{{ attraction.duration_minutes }}">
+            </div>
+
+            <div>
+                <label for="description">Descripción y notas de ubicación</label>
+                <textarea id="description" name="description" rows="3" placeholder="Ubicación, capacidad recomendada...">{{ attraction.description }}</textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-3 border-t border-black/10">
+                <a href="{{ url_for('attraction_detail', attraction_id=attraction.id) }}" class="button button-muted">Cancelar</a>
+                <button type="submit" class="button button-primary">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

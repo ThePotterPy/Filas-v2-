@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+{% block title %}{{ attraction.name }} — EXPY FEST{% endblock %}
+{% block page_title %}{{ attraction.name }}{% endblock %}
+{% block page_subtitle %}Gestión operativa de fila y control de acceso en vivo{% endblock %}
+{% block content %}
+<div class="content-wrapper">
+    <!-- Barra superior de navegación y acciones -->
+    <div class="toolbar-row">
+        <a href="{{ url_for('index') }}" class="button button-muted">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            <span>Volver a Experiencias</span>
+        </a>
+        <div class="button-row">
+            <button type="button" class="button button-primary btn-sm" onclick="toggleAnnouncementModal()">
+                 Anunciar
+            </button>
+            <button type="button" class="button button-danger btn-sm" onclick="toggleSosModal()">
+                 Pedir Ayuda SOS
+            </button>
+            <a href="{{ url_for('edit_attraction', attraction_id=attraction.id) }}" class="button button-secondary btn-sm">
+                 Editar
+            </a>
+            <form action="{{ url_for('delete_attraction', attraction_id=attraction.id) }}" method="post" onsubmit="return confirm('¿Seguro que deseas eliminar esta experiencia?')">
+                <button type="submit" class="button button-muted btn-sm text-red-600">
+                    
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal / Bloque SOS Desplegable -->
+    <div id="sosPanel" class="card alert-card-modern !bg-red-950 !border-red-500 mb-2" style="display: none;">
+        <div class="flex justify-between items-start mb-3">
+            <div>
+                <h3 class="text-white font-bold text-lg flex items-center gap-2">
+                    <span></span> Enviar Alerta SOS a Supervisores
+                </h3>
+                <p class="text-red-200 text-sm">Esta alerta aparecerá en el inicio y panel central de inmediato.</p>
+            </div>
+            <button type="button" class="close-btn text-white" onclick="toggleSosModal()">&times;</button>
+        </div>
+        <form action="{{ url_for('create_sos_alert', attraction_id=attraction.id) }}" method="post" class="stacked-form">
+            <div class="grid md:grid-cols-2 gap-3">
+                <input name="volunteer_name" type="text" required placeholder="Tu nombre / operador responsable" class="!bg-black/40 !text-white !border-red-500/50">
+                <input name="message" type="text" placeholder="Motivo (ej: Falla de visor, multitud excesiva, etc.)" class="!bg-black/40 !text-white !border-red-500/50">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" class="button button-muted btn-sm" onclick="toggleSosModal()">Cancelar</button>
+                <button type="submit" class="button button-danger btn-sm font-bold">¡ENVIAR ALERTA AHORA!</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal / Bloque Anuncios Desplegable -->
+    <div id="announcementPanel" class="card alert-card-modern mb-2" style="display: none; background-color: rgba(30, 64, 175, 0.1); border-color: rgba(59, 130, 246, 0.5);">
+        <div class="flex justify-between items-start mb-3">
+            <div>
+                <h3 class="font-bold text-lg flex items-center gap-2" style="color: #1e3a8a;">
+                    <span></span> Hacer un Anuncio
+                </h3>
+                <p class="text-sm" style="color: #3b82f6;">Este anuncio aparecerá en la pantalla principal para que todos lo vean.</p>
+            </div>
+            <button type="button" class="close-btn" style="color: #1e3a8a;" onclick="toggleAnnouncementModal()">&times;</button>
+        </div>
+        <form action="{{ url_for('create_announcement', attraction_id=attraction.id) }}" method="post" class="stacked-form">
+            <div class="grid md:grid-cols-1 gap-3">
+                <input name="message" type="text" placeholder="Ej: ¡Atracción libre sin fila! Acérquense." style="border-color: rgba(59, 130, 246, 0.5);">
+            </div>
+            <div class="flex justify-end gap-2 mt-2">
+                <button type="button" class="button button-muted btn-sm" onclick="toggleAnnouncementModal()">Cancelar</button>
+                <button type="submit" class="button btn-sm font-bold" style="background-color: #2563eb; color: white;">Publicar Anuncio</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Panel de Métricas e Ingreso Rápido a Fila -->
+    <div class="grid gap-6 lg:grid-cols-12">
+        <!-- Columna Izquierda: Información de Experiencia y Espera -->
+        <div class="card lg:col-span-7 flex flex-col justify-between">
+            <div>
+                <div class="section-header mb-4">
+                    <div>
+                        <span class="eyebrow">EXPERIENCIA</span>
+                        <h2 class="text-2xl font-black text-expy-dark mb-1">{{ attraction.name }}</h2>
+                        <p class="text-muted">{{ attraction.description or 'Experiencia inmersiva activa del festival.' }}</p>
+                    </div>
+                    <div class="stats-box-large">
+                        <span class="stat-label">EN FILA</span>
+                        <span class="stat-value-highlight">{{ queue|length }}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <div class="info-card">
+                        <span class="info-label"> Duración</span>
+                        <span class="info-value">{{ attraction.duration_minutes or 5 }} min/turno</span>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label"> Espera Estimada</span>
+                        <span class="info-value {% if (queue|length * (attraction.duration_minutes or 5)) > 30 %}text-red-600 font-bold{% elif queue|length > 0 %}text-lime-700 font-bold{% endif %}">
+                            {% if queue|length > 0 %}
+                                {{ (queue|length * (attraction.duration_minutes or 5)) }} min
+                            {% else %}
+                                0 min (Libre)
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulario de incorporación rápida a la fila -->
+            <div class="quick-add-section mt-6 pt-5 border-t border-black/10">
+                <h3 class="text-base font-bold text-expy-dark mb-3 flex items-center gap-2">
+                    <span></span> Añadir Persona a la Fila
+                </h3>
+                <form action="{{ url_for('add_to_queue', attraction_id=attraction.id) }}" method="post" class="flex gap-2">
+                    <input id="person_name" name="person_name" type="text" required placeholder="Nombre completo de la persona..." class="flex-1 !py-3" autofocus autocomplete="off">
+                    <button type="submit" class="button button-primary whitespace-nowrap px-6">
+                        <span>Añadir</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Equipo de Voluntarixs -->
+        <div class="card lg:col-span-5 flex flex-col justify-between">
+            <div>
+                <h3 class="section-title flex items-center gap-2">
+                    <span></span> Equipo Asignado
+                </h3>
+                {% if volunteers %}
+                <div class="stacked-list max-h-52 overflow-y-auto pr-1">
+                    {% for v in volunteers %}
+                    <div class="volunteer-pill-row">
+                        <div>
+                            <p class="font-bold text-sm text-expy-dark">{{ v.name }}</p>
+                            <span class="status-indicator-dot 
+                                {% if v.status == 'activo' %}dot-active
+                                {% elif v.status == 'descanso' %}dot-break
+                                {% elif v.status == 'comiendo' %}dot-eating
+                                {% else %}dot-out{% endif %}">
+                                {{ v.status|capitalize }}
+                            </span>
+                        </div>
+                        <form action="{{ url_for('unassign_volunteer_from_attraction', attraction_id=attraction.id, volunteer_id=v.id) }}" method="post">
+                            <button type="submit" class="button button-muted btn-xs" title="Quitar asignación">Quitar</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-sm my-4">No hay operadores asignados en este momento.</p>
+                {% endif %}
+            </div>
+
+            {% if all_volunteers %}
+            <form action="{{ url_for('assign_volunteer_to_attraction', attraction_id=attraction.id) }}" method="post" class="mt-4 pt-3 border-t border-black/10">
+                <label for="volunteer_id" class="text-xs font-bold text-gray-500 uppercase">Asignar operador</label>
+                <div class="flex gap-2 mt-1">
+                    <select id="volunteer_id" name="volunteer_id" required class="flex-1 text-sm py-2">
+                        <option value="">Seleccionar voluntarix...</option>
+                        {% for v in all_volunteers %}
+                        <option value="{{ v.id }}" {% if v.attraction_id == attraction.id %}disabled{% endif %}>
+                            {{ v.name }}{% if v.attraction_id and v.attraction_id != attraction.id %} (otro puesto){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="button button-secondary btn-sm">Asignar</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tablero Principal de la Fila -->
+    <div class="card">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 pb-3 border-b border-black/10">
+            <div>
+                <h3 class="section-title !mb-0"> Fila en Tiempo Real</h3>
+                <p class="text-muted text-xs">Orden cronológico de ingreso. Da acceso en orden de llegada.</p>
+            </div>
+            {% if queue %}
+            <form action="{{ url_for('clear_queue', attraction_id=attraction.id) }}" method="post" onsubmit="return confirm('¿Seguro que deseas vaciar TODA la fila?')">
+                <button type="submit" class="button button-muted btn-sm text-red-600 hover:text-red-700">
+                     Vaciar fila
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if queue %}
+        <!-- Persona que sigue: DESTACADA -->
+        {% set next_person = queue[0] %}
+        <div class="next-person-hero mb-6">
+            <div class="flex items-center gap-3">
+                <span class="next-badge">SIGUIENTE EN INGRESAR</span>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-4 mt-3">
+                <div class="flex items-center gap-4">
+                    <div class="pos-circle">1</div>
+                    <div>
+                        <h4 class="text-2xl font-black text-expy-dark">{{ next_person.person_name }}</h4>
+                        <span class="text-xs text-gray-500">Listo para pasar a la experiencia</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <form action="{{ url_for('next_person', queue_id=next_person.id) }}" method="post">
+                        <button type="submit" class="button button-primary btn-lg shadow-lg">
+                            <span> Ingresar / Atender</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resto de la Fila -->
+        {% if queue|length > 1 %}
+        <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">En espera ({{ queue|length - 1 }})</h4>
+        <div class="grid gap-2">
+            {% for person in queue[1:] %}
+            <div class="queue-row-card">
+                <div class="flex items-center gap-3">
+                    <span class="queue-pos-pill">#{{ loop.index + 1 }}</span>
+                    <span class="font-bold text-expy-dark">{{ person.person_name }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400">
+                        Aprox. {{ loop.index * (attraction.duration_minutes or 5) }} min
+                    </span>
+                    <form action="{{ url_for('next_person', queue_id=person.id) }}" method="post" onsubmit="return confirm('¿Quitar a esta persona de la fila?')">
+                        <button type="submit" class="button button-muted btn-xs text-red-600" title="Quitar de fila">
+                            ✕ Quitar
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state-box !py-12">
+            <div class="empty-state-icon"></div>
+            <h4 class="text-lg font-bold text-expy-dark mb-1">¡La fila está vacía!</h4>
+            <p class="text-gray-500 text-sm max-w-sm mx-auto">No hay personas esperando. Ingresa nuevos participantes arriba para comenzar a gestionar la cola.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function toggleSosModal() {
+    const panel = document.getElementById('sosPanel');
+    panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+    if (panel.style.display === 'block') {
+        document.getElementById('announcementPanel').style.display = 'none';
+        panel.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+function toggleAnnouncementModal() {
+    const panel = document.getElementById('announcementPanel');
+    panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+    if (panel.style.display === 'block') {
+        document.getElementById('sosPanel').style.display = 'none';
+        panel.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+</script>
+{% endblock %}
